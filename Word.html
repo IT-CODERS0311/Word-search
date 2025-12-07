@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Search Game</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(to right, #fbc2eb, #a6c1ee);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+}
+.page { display: none; text-align: center; }
+.active { display: block; }
+.level-btn {
+  margin: 5px;
+  padding: 10px 20px;
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 18px;
+}
+.game-board {
+  display: grid;
+  grid-template-columns: repeat(8, 50px);
+  grid-template-rows: repeat(8, 50px);
+  gap: 3px;
+  margin: 20px auto;
+}
+.cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 22px;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid #999;
+}
+.cell.selected { background: #ffeaa7; }
+#hint-box {
+  margin-top: 20px;
+  padding: 10px;
+  background: #0984e3;
+  color: white;
+  cursor: pointer;
+  border-radius: 8px;
+}
+#timer { font-size: 20px; font-weight: bold; margin-top: 10px; }
+.result { font-size: 28px; margin: 20px; }
+.next-btn, .retry-btn {
+  padding: 10px 20px;
+  margin: 10px;
+  font-size: 18px;
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  color: white;
+}
+.next-btn { background: #4caf50; }
+.retry-btn { background: #ff4757; }
+#word-to-find { font-size: 22px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<!-- Page 1: Levels -->
+<div id="page1" class="page active">
+  <h1>Select Level</h1>
+  <div id="levels"></div>
+</div>
+
+<!-- Page 2: Game -->
+<div id="page2" class="page">
+  <h2 id="level-title">Level 1</h2>
+  <div id="word-to-find">Find the word: <span id="current-word"></span></div>
+  <div id="timer">20s</div>
+  <div class="game-board" id="game-board"></div>
+  <div id="hint-box">Show Hint</div>
+</div>
+
+<!-- Page 3: Result -->
+<div id="page3" class="page">
+  <div id="result-message" class="result"></div>
+  <button id="next-btn" class="next-btn">Next Level</button>
+  <button id="retry-btn" class="retry-btn">Try Again</button>
+</div>
+
+<script>
+const levelsDiv = document.getElementById('levels');
+const page1 = document.getElementById('page1');
+const page2 = document.getElementById('page2');
+const page3 = document.getElementById('page3');
+const gameBoard = document.getElementById('game-board');
+const hintBox = document.getElementById('hint-box');
+const timerEl = document.getElementById('timer');
+const resultMessage = document.getElementById('result-message');
+const nextBtn = document.getElementById('next-btn');
+const retryBtn = document.getElementById('retry-btn');
+const levelTitle = document.getElementById('level-title');
+const currentWordEl = document.getElementById('current-word');
+
+let currentLevel = 1;
+let timer;
+let timeLeft = 20;
+let selectedCells = [];
+let wordPositions = []; 
+
+const words = ["APPLE","BANANA","ORANGE","GRAPE","MANGO"]; // example words
+
+// Create level buttons
+for (let i = 1; i <= 20; i++) {
+  let btn = document.createElement('button');
+  btn.className = 'level-btn';
+  btn.textContent = `Level ${i}`;
+  btn.onclick = () => startLevel(i);
+  levelsDiv.appendChild(btn);
+}
+
+// Start level
+function startLevel(level) {
+  currentLevel = level;
+  page1.classList.remove('active');
+  page2.classList.add('active');
+  levelTitle.textContent = `Level ${level}`;
+  selectedCells = [];
+  let word = words[(level-1) % words.length]; 
+  currentWordEl.textContent = word;
+  generateBoard(word);
+  startTimer();
+}
+
+// Generate board with word
+function generateBoard(word) {
+  gameBoard.innerHTML = '';
+  wordPositions = [];
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let row = Math.floor(Math.random() * 8);
+  let col = Math.floor(Math.random() * (9 - word.length));
+
+  // Place word horizontally
+  for (let i = 0; i < word.length; i++) {
+    wordPositions.push({row: row, col: col+i, letter: word[i]});
+  }
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      let cell = document.createElement('div');
+      cell.className = 'cell';
+      let pos = wordPositions.find(p => p.row === r && p.col === c);
+      if (pos) {
+        cell.textContent = pos.letter;
+        cell.dataset.correct = "true";
+      } else {
+        cell.textContent = letters[Math.floor(Math.random()*letters.length)];
+      }
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      cell.onclick = () => selectCell(cell, word);
+      gameBoard.appendChild(cell);
+    }
+  }
+}
+
+// Cell selection
+function selectCell(cell, word) {
+  if (!cell.classList.contains('selected')) {
+    cell.classList.add('selected');
+    selectedCells.push(cell);
+  }
+
+  // Check if all correct cells are selected
+  let correctCells = wordPositions.map(p => `${p.row}-${p.col}`);
+  let selectedPos = selectedCells.map(c => `${c.dataset.row}-${c.dataset.col}`);
+  let allFound = correctCells.every(pos => selectedPos.includes(pos));
+  if (allFound) winLevel();
+}
+
+// Timer
+function startTimer() {
+  clearInterval(timer);
+  timeLeft = 20;
+  timerEl.textContent = `${timeLeft}s`;
+  timer = setInterval(() => {
+    timeLeft--;
+    timerEl.textContent = `${timeLeft}s`;
+    if (timeLeft <= 0) {
+      clearInterval(timer);
+      loseLevel();
+    }
+  }, 1000);
+}
+
+// Hint
+hintBox.onclick = () => {
+  alert(`Hint: The word starts with "${wordPositions[0].letter}"`);
+}
+
+// Win/Lose
+function winLevel() {
+  clearInterval(timer);
+  page2.classList.remove('active');
+  page3.classList.add('active');
+  resultMessage.textContent = `🎉 You Win! 🎉`;
+  nextBtn.style.display = 'inline-block';
+  retryBtn.style.display = 'none';
+}
+
+function loseLevel() {
+  page2.classList.remove('active');
+  page3.classList.add('active');
+  resultMessage.textContent = `😢 You Lose! 😢`;
+  nextBtn.style.display = 'none';
+  retryBtn.style.display = 'inline-block';
+}
+
+// Buttons
+nextBtn.onclick = () => {
+  page3.classList.remove('active');
+  startLevel(currentLevel+1);
+}
+
+retryBtn.onclick = () => {
+  page3.classList.remove('active');
+  startLevel(currentLevel);
+}
+</script>
+
+</body>
+</html>
